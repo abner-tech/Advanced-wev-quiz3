@@ -1,4 +1,4 @@
-module github.com/abner-tech/Comments-Api.git
+module github.com/abner-tech/Credentials-Api.git
 
 go 1.23.0
 

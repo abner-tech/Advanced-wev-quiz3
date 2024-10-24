@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/abner-tech/Comments-Api.git/internal/data"
-	"github.com/abner-tech/Comments-Api.git/internal/validator"
+	"github.com/abner-tech/Credentials-Api.git/internal/data"
+	"github.com/abner-tech/Credentials-Api.git/internal/validator"
 )
 
 func (a *applicationDependences) createCommentHandler(w http.ResponseWriter, r *http.Request) {
-	//create a struct to hold a comment
+	//create a struct to hold a credential
 	//we use struct tags [` `] to make the names display in lowercase
 	var incomingData struct {
-		Content string `json:"content"`
-		Author  string `json:"author"`
+		Email_address string `json:"email_address"`
+		Name          string `json:"name"`
 	}
 
 	//perform decoding
@@ -25,21 +25,21 @@ func (a *applicationDependences) createCommentHandler(w http.ResponseWriter, r *
 		return
 	}
 
-	comment := &data.Comment{
-		Content: incomingData.Content,
-		Author:  incomingData.Author,
+	credential := &data.Credential{
+		Email_address: incomingData.Email_address,
+		Name:          incomingData.Name,
 	}
 
 	v := validator.New()
 	//do validation
-	data.ValidateComment(v, comment)
+	data.ValidateCredential(v, credential)
 	if !v.IsEmpty() {
 		a.failedValidationResponse(w, r, v.Errors) //implemented later
 		return
 	}
 
-	//add comment to the comments table in database
-	err = a.commentModel.Insert(comment)
+	//add credential to the credentials table in database
+	err = a.credentialModel.Insert(credential)
 	if err != nil {
 		a.serverErrorResponse(w, r, err)
 		return
@@ -48,13 +48,13 @@ func (a *applicationDependences) createCommentHandler(w http.ResponseWriter, r *
 	//for now display the result
 	// fmt.Fprintf(w, "%+v\n", incomingData)
 
-	//set a location header, the path to the newly created comments
+	//set a location header, the path to the newly created credentials
 	headers := make(http.Header)
-	headers.Set("Location", fmt.Sprintf("/v1/comments/%d", comment.ID))
+	headers.Set("Location", fmt.Sprintf("/v1/comments/%d", credential.ID))
 
 	//send a json response with a 201 (new reseource created) status code
 	data := envelope{
-		"comment": comment,
+		"credential": credential,
 	}
 	err = a.writeJSON(w, http.StatusCreated, data, headers)
 	if err != nil {
@@ -63,9 +63,9 @@ func (a *applicationDependences) createCommentHandler(w http.ResponseWriter, r *
 	}
 }
 
-func (a *applicationDependences) fetchCommentByID(w http.ResponseWriter, r *http.Request) (*data.Comment, error) {
+func (a *applicationDependences) fetchCommentByID(w http.ResponseWriter, r *http.Request) (*data.Credential, error) {
 	// Get the id from the URL /v1/comments/:id so that we
-	// can use it to query the comments table. We will
+	// can use it to query the credentials table. We will
 	// implement the readIDParam() function later
 	id, err := a.readIDParam(r)
 	if err != nil {
@@ -73,8 +73,8 @@ func (a *applicationDependences) fetchCommentByID(w http.ResponseWriter, r *http
 
 	}
 
-	// Call Get() to retrieve the comment with the specified id
-	comment, err := a.commentModel.Get(id)
+	// Call Get() to retrieve the credential with the specified id
+	credential, err := a.credentialModel.Get(id)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -84,18 +84,18 @@ func (a *applicationDependences) fetchCommentByID(w http.ResponseWriter, r *http
 		}
 
 	}
-	return comment, nil
+	return credential, nil
 }
 
 func (a *applicationDependences) displayCommentHandler(w http.ResponseWriter, r *http.Request) {
 
-	comment, err := a.fetchCommentByID(w, r)
+	credential, err := a.fetchCommentByID(w, r)
 	if err != nil {
 		return
 	}
-	// display the comment
+	// display the credential
 	data := envelope{
-		"comment": comment,
+		"credential": credential,
 	}
 	err = a.writeJSON(w, http.StatusOK, data, nil)
 	if err != nil {
@@ -107,7 +107,7 @@ func (a *applicationDependences) displayCommentHandler(w http.ResponseWriter, r 
 
 func (a *applicationDependences) updateCommentHandler(w http.ResponseWriter, r *http.Request) {
 
-	comment, err := a.fetchCommentByID(w, r)
+	credential, err := a.fetchCommentByID(w, r)
 	if err != nil {
 		return
 	}
@@ -117,8 +117,8 @@ func (a *applicationDependences) updateCommentHandler(w http.ResponseWriter, r *
 	// between the client leaving a field empty intentionally
 	// and the field not needing to be updated
 	var incomingData struct {
-		Content *string `json:"content"`
-		Author  *string `json:"author"`
+		Email_address *string `json:"email_address"`
+		Name          *string `json:"name"`
 	}
 
 	// perform the decoding
@@ -129,30 +129,30 @@ func (a *applicationDependences) updateCommentHandler(w http.ResponseWriter, r *
 	}
 	// We need to now check the fields to see which ones need updating
 	// if incomingData.Content is nil, no update was provided
-	if incomingData.Content != nil {
-		comment.Content = *incomingData.Content
+	if incomingData.Email_address != nil {
+		credential.Email_address = *incomingData.Email_address
 	}
 	// if incomingData.Author is nil, no update was provided
-	if incomingData.Author != nil {
-		comment.Author = *incomingData.Author
+	if incomingData.Name != nil {
+		credential.Name = *incomingData.Name
 	}
 
 	// Before we write the updates to the DB let's validate
 	v := validator.New()
-	data.ValidateComment(v, comment)
+	data.ValidateCredential(v, credential)
 	if !v.IsEmpty() {
 		a.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
 	// perform the update
-	err = a.commentModel.Update(comment)
+	err = a.credentialModel.Update(credential)
 	if err != nil {
 		a.serverErrorResponse(w, r, err)
 		return
 	}
 	data := envelope{
-		"comment": comment,
+		"credential": credential,
 	}
 	err = a.writeJSON(w, http.StatusOK, data, nil)
 	if err != nil {
@@ -168,7 +168,7 @@ func (a *applicationDependences) deleteCommentHandler(w http.ResponseWriter, r *
 		a.notFoundResponse(w, r)
 		return
 	}
-	err = a.commentModel.Delete(id)
+	err = a.credentialModel.Delete(id)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -179,9 +179,9 @@ func (a *applicationDependences) deleteCommentHandler(w http.ResponseWriter, r *
 		return
 	}
 
-	//diplay the comment
+	//diplay the credential
 	data := envelope{
-		"message": "comment deleted successfully",
+		"message": "signup credentials deleted successfully",
 	}
 	err = a.writeJSON(w, http.StatusOK, data, nil)
 	if err != nil {
@@ -204,8 +204,8 @@ func (a *applicationDependences) listCommentHandler(w http.ResponseWriter, r *ht
 	queryParameterData.Content = a.getSingleQueryParameter(queryParameter, "content", "")
 	queryParameterData.Author = a.getSingleQueryParameter(queryParameter, "author", "")
 
-	//call GetAll to retrieve all comments of the DB
-	comments, err := a.commentModel.GetAll(queryParameterData.Content, queryParameterData.Author)
+	//call GetAll to retrieve all credentials of the DB
+	credentials, err := a.credentialModel.GetAll(queryParameterData.Content, queryParameterData.Author)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -218,7 +218,7 @@ func (a *applicationDependences) listCommentHandler(w http.ResponseWriter, r *ht
 	}
 
 	data := envelope{
-		"comments": comments,
+		"credentials": credentials,
 	}
 	err = a.writeJSON(w, http.StatusOK, data, nil)
 	if err != nil {

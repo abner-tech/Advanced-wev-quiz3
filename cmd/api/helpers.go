@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/abner-tech/Comments-Api.git/internal/validator"
+	"github.com/abner-tech/Credentials-Api.git/internal/validator"
 	"github.com/julienschmidt/httprouter"
 )
 

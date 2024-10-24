@@ -4,88 +4,95 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/mail"
 	"time"
 
-	"github.com/abner-tech/Comments-Api.git/internal/validator"
+	"github.com/abner-tech/Credentials-Api.git/internal/validator"
 )
 
 // each name begins with uppercase to make them exportable/ public
-type Comment struct {
-	ID        int64     `json:"id"`      //unique value per comment
-	Content   string    `json:"content"` //comment data
-	Author    string    `json:"author"`  //person who wrote comment
-	CreatedAt time.Time `json:"-"`       //database timestamp
-	Version   int32     `json:"version"` //icremented on each update
+type Credential struct {
+	ID            int64     `json:"id"`            //unique value per credential
+	Created_at    time.Time `json:"-"`             //credential timestamp
+	Email_address string    `json:"email_address"` //email address for the credential
+	Name          string    `json:"name"`          //person name
+	Version       int32     `json:"version"`       //icremented on each update
 }
 
-// commentModel that expects a connection pool
-type CommentModel struct {
+// CredentialModel that expects a connection pool
+type CredentialModel struct {
 	DB *sql.DB
 }
 
-// Insert Row to comments table
-// expects a pointer to the actual comment content
-func (c CommentModel) Insert(comment *Comment) error {
+// Insert Row to credentials table
+// expects a pointer to the actual credential content
+func (c CredentialModel) Insert(credential *Credential) error {
 	//the sql query to be executed against the database table
 	query := `
-	INSERT INTO comments (content, author)
+	INSERT INTO credentials (name, email_address)
 	VALUES ($1, $2)
 	RETURNING id, created_at, version`
 
 	//the actual values to be passed into $1 and $2
-	args := []any{comment.Content, comment.Author}
+	args := []any{credential.Name, credential.Email_address}
 
 	// Create a context with a 3-second timeout. No database
 	// operation should take more than 3 seconds or we will quit it
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	// execute the query against the comments database table. We ask for the the
+	// execute the query against the credentials database table. We ask for the the
 	// id, created_at, and version to be sent back to us which we will use
-	// to update the Comment struct later on
+	// to update the credential struct later on
 	return c.DB.QueryRowContext(ctx, query, args...).Scan(
-		&comment.ID,
-		&comment.CreatedAt,
-		&comment.Version)
+		&credential.ID,
+		&credential.Created_at,
+		&credential.Version)
 
 }
 
-func ValidateComment(v *validator.Validator, comment *Comment) {
-	//check if the content field is empty
-	v.Check(comment.Content != "", "content", "must be provided")
-	//check if the Author field is empty
-	v.Check(comment.Author != "", "author", "must be provided")
-	//check if the content field is empty
-	v.Check(len(comment.Content) <= 100, "content", "must not be more than 100 bytes long")
-	//check is author field is empty
-	v.Check(len(comment.Author) <= 25, "author", "must not be more than 25 bytes long")
+func ValidateCredential(v *validator.Validator, credential *Credential) {
+	//check if the email field is empty
+	v.Check(credential.Email_address != "", "email_address", "must be provided")
+	//check if the name field is empty
+	v.Check(credential.Name != "", "name", "must be provided")
+	//check if the email field is empty
+	v.Check(len(credential.Email_address) <= 50, "email_address", "must not be more than 50 bytes long")
+	//check is name field is empty
+	v.Check(len(credential.Name) <= 25, "name", "must not be more than 25 bytes long")
+	//check for email address to contain a @ and a . on its content
+	_, err := mail.ParseAddress(credential.Email_address)
+	if err != nil {
+		v.Check(false, "email_address", "invalid email provided")
+		return
+	}
 }
 
-// get a comment from DB based on ID
-func (c CommentModel) Get(id int64) (*Comment, error) {
+// get a credential from DB based on ID
+func (c CredentialModel) Get(id int64) (*Credential, error) {
 	//check if the id is valid
 	if id < 1 {
 		return nil, ErrRecordNotFound
 	}
 	//the sql query to be excecuted against the database table
 	query := `
-	SELECT id, created_at, content, author, version
-	FROM comments
+	SELECT id, created_at, email_address, name, version
+	FROM credentials
 	WHERE id = $1
 	`
 
-	//declare a variable of type Comment to hold the returned values
-	var comment Comment
+	//declare a variable of type credential to hold the returned values
+	var credential Credential
 
 	//set 3-second context/timer
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	err := c.DB.QueryRowContext(ctx, query, id).Scan(
-		&comment.ID,
-		&comment.Content,
-		&comment.Content,
-		&comment.Author,
-		&comment.Version,
+		&credential.ID,
+		&credential.Created_at,
+		&credential.Email_address,
+		&credential.Name,
+		&credential.Version,
 	)
 	//check for errors
 	if err != nil {
@@ -96,22 +103,22 @@ func (c CommentModel) Get(id int64) (*Comment, error) {
 			return nil, err
 		}
 	}
-	return &comment, nil
+	return &credential, nil
 }
 
-func (c CommentModel) GetAll(content string, author string) (*[]Comment, error) {
+func (c CredentialModel) GetAll(content string, author string) (*[]Credential, error) {
 	query := `
-	SELECT id, created_at, content, author, version
-	FROM comments
-	WHERE (to_tsvector('simple',content) @@
+	SELECT id, created_at, email_address, name, version
+	FROM credentials
+	WHERE (to_tsvector('simple',email_address) @@
 		plainto_tsquery('simple', $1) OR $1 = '')
-	AND (to_tsvector('simple',author) @@
+	AND (to_tsvector('simple',name) @@
 		plainto_tsquery('simple',$2) OR $2 = '')
 	`
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	comments, err := c.DB.QueryContext(ctx, query, content, author)
+	credentials, err := c.DB.QueryContext(ctx, query, content, author)
 	//check for errors
 	if err != nil {
 		switch {
@@ -122,38 +129,38 @@ func (c CommentModel) GetAll(content string, author string) (*[]Comment, error) 
 		}
 	}
 
-	var cmts []Comment
-	for comments.Next() {
-		var com Comment
-		if err := comments.Scan(&com.ID, &com.CreatedAt, &com.Content, &com.Author, &com.Version); err != nil {
+	var credential []Credential
+	for credentials.Next() {
+		var tempCredential Credential
+		if err := credentials.Scan(&tempCredential.ID, &tempCredential.Created_at, &tempCredential.Email_address, &tempCredential.Name, &tempCredential.Version); err != nil {
 			return nil, err
 		}
-		cmts = append(cmts, com)
+		credential = append(credential, tempCredential)
 	}
-	return &cmts, nil
+	return &credential, nil
 }
 
-// update  a specific record from the comments table
-func (c CommentModel) Update(comment *Comment) error {
+// update  a specific record from the credentials table
+func (c CredentialModel) Update(credential *Credential) error {
 	//the sql query to be excecuted against the DB table
 	//Every time make an update, version number is incremented
 
 	query := `
-	UPDATE comments
-	SET content=$1, author=$2, version=version+1
+	UPDATE credentials
+	SET email_address=$1, name=$2, version=version+1
 	WHERE id = $3
 	RETURNING version
 	`
 
-	args := []any{comment.Content, comment.Author, comment.ID}
+	args := []any{credential.Email_address, credential.Name, credential.ID}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	return c.DB.QueryRowContext(ctx, query, args...).Scan(&comment.Version)
+	return c.DB.QueryRowContext(ctx, query, args...).Scan(&credential.Version)
 
 }
 
-// delete a specific comment form the comments table
-func (c CommentModel) Delete(id int64) error {
+// delete a specific credential form the credentials table
+func (c CredentialModel) Delete(id int64) error {
 	//check if the id is valid
 	if id < 1 {
 		return ErrRecordNotFound
@@ -161,7 +168,7 @@ func (c CommentModel) Delete(id int64) error {
 
 	//sql querry to be excecuted against the database table
 	query := `
-	DELETE FROM comments
+	DELETE FROM credentials
 	WHERE id = $1
 	`
 

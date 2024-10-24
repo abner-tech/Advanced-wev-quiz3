@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/abner-tech/Comments-Api.git/internal/data"
+	"github.com/abner-tech/Credentials-Api.git/internal/data"
 	_ "github.com/lib/pq"
 )
 
@@ -25,9 +25,9 @@ type serverConfig struct {
 }
 
 type applicationDependences struct {
-	config       serverConfig
-	logger       *slog.Logger
-	commentModel data.CommentModel
+	config          serverConfig
+	logger          *slog.Logger
+	credentialModel data.CredentialModel
 }
 
 func main() {
@@ -35,7 +35,7 @@ func main() {
 	flag.IntVar(&settings.port, "port", 4000, "Server Port")
 	flag.StringVar(&settings.environment, "env", "development", "Environment(development|staging|production)")
 	//read the dsn
-	flag.StringVar(&settings.db.dsn, "db-dsn", "postgres://comments:comments@localhost/comments?sslmode=disable", "PostgreSQL DSN")
+	flag.StringVar(&settings.db.dsn, "db-dsn", "postgres://signup:signup@localhost/signup?sslmode=disable", "PostgreSQL DSN")
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -53,9 +53,9 @@ func main() {
 	logger.Info("Database Connection Pool Established")
 
 	appInstance := &applicationDependences{
-		config:       settings,
-		logger:       logger,
-		commentModel: data.CommentModel{DB: db},
+		config:          settings,
+		logger:          logger,
+		credentialModel: data.CredentialModel{DB: db},
 	}
 
 	apiServer := &http.Server{
